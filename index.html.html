@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>전자기 유도 실험 시뮬레이션</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            display: flex;
+            height: 95vh;
+            box-sizing: border-box;
+            gap: 20px;
+        }
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-width: 500px;
+        }
+        .right-panel {
+            flex: 1.2;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h2, h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        label {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        select, button {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #animContainer {
+            position: relative;
+            width: 100%;
+            height: 230px;
+            background: #fafafa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas.simCanvas {
+            background: #ffffff;
+        }
+        .table-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            max-height: 180px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: center;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        td[contenteditable="true"] {
+            background-color: #fffdf0;
+        }
+        td[contenteditable="true"]:focus {
+            outline: 2px solid #007bff;
+            background-color: #ffffff;
+        }
+        .table-actions {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .graph-container {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 왼쪽 패널 -->
+    <div class="left-panel">
+        <div class="card">
+            <h2>실험 설정 및 제어</h2>
+            <div class="controls">
+                <label for="turnsSelect">코일 감은 수:</label>
+                <select id="turnsSelect">
+                    <option value="200" selected>200회 (빨강)</option>
+                    <option value="400">400회 (파랑)</option>
+                    <option value="600">600회 (초록)</option>
+                </select>
+                <button id="startBtn" onclick="startExperiment()">실험 시작</button>
+                <button id="clearBtn" onclick="fullReset()" style="background-color: #dc3545;">초기화</button>
+            </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; align-items: center;">
+            <h3>코일과 자석 시뮬레이션</h3>
+            <div id="animContainer">
+                <canvas id="simCanvas" width="300" height="210" class="simCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="card table-container">
+            <h3>실험 기록 표 (직접 타자 입력)</h3>
+            <table id="recordTable">
+                <thead>
+                    <tr>
+                        <th>회차</th>
+                        <th>감은 수</th>
+                        <th>최대 극댓값 (mV)</th>
+                        <th>최소 극솟값 (mV)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td contenteditable="true">실험 1</td>
+                        <td contenteditable="true">200회</td>
+                        <td contenteditable="true" style="color: red;">-</td>
+                        <td contenteditable="true" style="color: blue;">-</td>
+                    </tr>
+                    <tr>
+                        <td contenteditable="true">실험 2</td>
+                        <td contenteditable="true">400회</td>
+                        <td contenteditable="true" style="color: red;">-</td>
+                        <td contenteditable="true" style="color: blue;">-</td>
+                    </tr>
+                    <tr>
+                        <td contenteditable="true">실험 3</td>
+                        <td contenteditable="true">600회</td>
+                        <td contenteditable="true" style="color: red;">-</td>
+                        <td contenteditable="true" style="color: blue;">-</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="table-actions">
+                <button onclick="addRow()" style="background-color: #28a745; font-size: 12px; padding: 4px 8px;">+ 빈 행 추가</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 오른쪽 패널: 그래프 -->
+    <div class="right-panel">
+        <h3>전자기 유도 기전력 그래프</h3>
+        <div class="graph-container">
+            <canvas id="emfGraph"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const turnsSelect = document.getElementById('turnsSelect');
+        const startBtn = document.getElementById('startBtn');
+        const recordTableBody = document.querySelector('#recordTable tbody');
+
+        let animationId = null;
+        let isRunning = false;
+        let experimentCount = 0;
+
+        let magnetY = 30; 
+        const magnetX = 150;
+        const coilYCenter = 120;
+        let timeStep = 0;
+        
+        let currentRunData = {
+            turns: 200,
+            color: '#ff4d4d',
+            maxVal: 0,
+            minVal: 0
+        };
+
+        const maxMinLabelPlugin = {
+            id: 'maxMinLabelPlugin',
+            afterDatasetsDraw(chart) {
+                const { ctx, scales: { x, y } } = chart;
+                
+                chart.data.datasets.forEach((dataset) => {
+                    if (!dataset.data || dataset.data.length === 0) return;
+
+                    let maxPoint = dataset.data[0];
+                    let minPoint = dataset.data[0];
+
+                    dataset.data.forEach(pt => {
+                        if (pt.y > maxPoint.y) maxPoint = pt;
+                        if (pt.y < minPoint.y) minPoint = pt;
+                    });
+
+                    const xMax = x.getPixelForValue(maxPoint.x);
+                    const yMax = y.getPixelForValue(maxPoint.y);
+                    ctx.save();
+                    ctx.fillStyle = 'red';
+                    ctx.beginPath();
+                    ctx.arc(xMax, yMax, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.font = 'bold 11px Malgun Gothic';
+                    ctx.fillStyle = '#cc0000';
+                    ctx.fillText(`최대: ${maxPoint.y.toFixed(1)}mV`, xMax + 6, yMax - 4);
+
+                    const xMin = x.getPixelForValue(minPoint.x);
+                    const yMin = y.getPixelForValue(minPoint.y);
+                    ctx.fillStyle = 'blue';
+                    ctx.beginPath();
+                    ctx.arc(xMin, yMin, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#0000cc';
+                    ctx.fillText(`최소: ${minPoint.y.toFixed(1)}mV`, xMin + 6, yMin + 14);
+                    ctx.restore();
+                });
+            }
+        };
+
+        const ctxGraph = document.getElementById('emfGraph').getContext('2d');
+        const emfChart = new Chart(ctxGraph, {
+            type: 'line',
+            data: { datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: { display: true, text: '시간 (ms)' },
+                        min: 0,
+                        max: 2000
+                    },
+                    y: {
+                        title: { display: true, text: '유도 기전력 (mV)' },
+                        suggestedMin: -300,
+                        suggestedMax: 200
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        enabled: true,
+                        callbacks: {
+                            label: function(context) {
+                                return `시간: ${context.parsed.x}ms, 기전력: ${context.parsed.y.toFixed(2)}mV`;
+                            }
+                        }
+                    }
+                }
+            },
+            plugins: [maxMinLabelPlugin]
+        });
+
+        function getCoilColor(turns) {
+            if (turns == 200) return '#ff4d4d';
+            if (turns == 400) return '#4d79ff';
+            if (turns == 600) return '#2eb82e';
+            return '#000000';
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const turns = parseInt(turnsSelect.value);
+            const coilColor = getCoilColor(turns);
+
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = coilColor;
+            let coilHeight = 60;
+            let startY = coilYCenter - coilHeight / 2;
+            let loops = turns / 20;
+
+            ctx.fillStyle = coilColor;
+            ctx.fillRect(115, startY, 70, coilHeight);
+
+            for (let i = 0; i <= loops; i++) {
+                let yPos = startY + (i * (coilHeight / loops));
+                ctx.beginPath();
+                ctx.ellipse(150, yPos, 35, 6, 0, 0, Math.PI * 2);
+                ctx.strokeStyle = '#222';
+                ctx.stroke();
+                ctx.fillStyle = coilColor;
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#ff3333';
+            ctx.fillRect(magnetX - 12, magnetY, 24, 30);
+            ctx.fillStyle = '#3333ff';
+            ctx.fillRect(magnetX - 12, magnetY + 30, 24, 30);
+
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText('N', magnetX - 4, magnetY + 20);
+            ctx.fillText('S', magnetX - 4, magnetY + 50);
+        }
+
+        function startExperiment() {
+            if (isRunning) return;
+            isRunning = true;
+            startBtn.disabled = true;
+            turnsSelect.disabled = true;
+
+            const turns = parseInt(turnsSelect.value);
+            const color = getCoilColor(turns);
+
+            experimentCount++;
+            magnetY = 10; 
+            timeStep = 0;
+
+            currentRunData = {
+                turns: turns,
+                color: color,
+                maxVal: 0,
+                minVal: 0
+            };
+
+            const newDataset = {
+                label: `실험 ${experimentCount} (${turns}회)`,
+                data: [],
+                borderColor: color,
+                backgroundColor: color,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHitRadius: 10,
+                tension: 0.2
+            };
+            emfChart.data.datasets.push(newDataset);
+            emfChart.update();
+
+            runSimulationStep();
+        }
+
+        function runSimulationStep() {
+            if (!isRunning) return;
+
+            magnetY += 3.5; 
+            timeStep += 40; 
+
+            let distance = magnetY - coilYCenter;
+            let turns = currentRunData.turns;
+            let speedFactor = 1.0 + Math.max(0, distance / 30); 
+            let emf = (turns / 200) * 80 * (-distance / 20) * Math.exp(-Math.pow(distance / 30, 2)) * speedFactor;
+
+            if (emf > currentRunData.maxVal) currentRunData.maxVal = emf;
+            if (emf < currentRunData.minVal) currentRunData.minVal = emf;
+
+            const activeDataset = emfChart.data.datasets[emfChart.data.datasets.length - 1];
+            activeDataset.data.push({ x: timeStep, y: emf });
+            
+            if (timeStep > 2000) {
+                emfChart.options.scales.x.max = Math.max(2000, timeStep);
+            }
+            emfChart.update('none');
+
+            drawScene();
+
+            if (magnetY > 200) {
+                stopExperiment();
+            } else {
+                animationId = setTimeout(runSimulationStep, 40);
+            }
+        }
+
+        function stopExperiment() {
+            isRunning = false;
+            clearTimeout(animationId);
+            startBtn.disabled = false;
+            turnsSelect.disabled = false;
+            magnetY = 30; 
+            drawScene();
+        }
+
+        function fullReset() {
+            stopExperiment();
+            experimentCount = 0;
+            emfChart.data.datasets = [];
+            emfChart.update();
+            turnsSelect.value = "200";
+            magnetY = 30;
+            drawScene();
+            startBtn.disabled = false;
+            turnsSelect.disabled = false;
+        }
+
+        function addRow() {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td contenteditable="true">직접입력</td>
+                <td contenteditable="true">-</td>
+                <td contenteditable="true">-</td>
+                <td contenteditable="true">-</td>
+            `;
+            recordTableBody.appendChild(row);
+        }
+
+        drawScene();
+    </script>
+</body>
+</html>
